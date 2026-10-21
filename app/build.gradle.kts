@@ -17,6 +17,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -31,6 +33,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    sourceSets {
+        // 端末で動かすテストは、共通テストケース（testcases/）を assets として読む
+        getByName("androidTest").assets.directories.add(rootProject.file("testcases").path)
     }
     testOptions {
         unitTests.all {
@@ -57,4 +63,12 @@ dependencies {
     // 単体テスト（JVM）では Android の SQLite と org.json が使えないので、代わりのものを使う
     testImplementation(libs.json)
     testImplementation(libs.sqlite.jdbc)
+
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    // Compose の UI テストが使う Espresso は、古い版だと新しい Android（API 37）で動かないので、版を上げる
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
