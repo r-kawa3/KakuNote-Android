@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rkawa.kakunote.MainActivity
+import com.rkawa.kakunote.ResetAppData
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -20,7 +21,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class LookupScreenTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val reset = ResetAppData()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()
 
     @Before

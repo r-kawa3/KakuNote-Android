@@ -57,6 +57,8 @@ data class SearchForm(
     val selectedIndex: Int = 0,
     /** 一番上のカードの入力。姓なしなら総画数（地格）、姓ありなら総格 */
     val totalText: String = "",
+    /** 姓ありのときの、ほかの格（人格・地格・外格）の入力 */
+    val otherKakuTexts: Map<KakuKind, String> = emptyMap(),
 ) {
     val selected: PositionInput get() = positions[selectedIndex]
 
@@ -73,6 +75,12 @@ data class SearchForm(
         val totals = parseNumbers(totalText)
         val conditions = mutableMapOf<KakuKind, Set<Int>>()
         if (totals.isNotEmpty()) conditions[if (sei != null) KakuKind.SOUKAKU else KakuKind.CHIKAKU] = totals.toSet()
+        if (sei != null) {
+            for (kind in OTHER_KAKU_KINDS) {
+                val values = parseNumbers(otherKakuTexts[kind] ?: "")
+                if (values.isNotEmpty()) conditions[kind] = values.toSet()
+            }
+        }
         if (conditions.isEmpty()) {
             return FormResult.Invalid(if (sei != null) "総格か、ほかの格の画数を入力してください" else "総画数を入力してください")
         }
@@ -83,6 +91,9 @@ data class SearchForm(
     }
 
     companion object {
+        /** 姓ありのとき、折りたたみの中で条件にできる格（天格は姓だけで決まるので表示だけ） */
+        val OTHER_KAKU_KINDS = listOf(KakuKind.JINKAKU, KakuKind.CHIKAKU, KakuKind.GAIKAKU)
+
         /** 「24, 31」「24、31」「24 31」のような入力から、正の整数を取り出す。 */
         fun parseNumbers(text: String): List<Int> =
             text.split(',', '、', '，', ' ', '　')

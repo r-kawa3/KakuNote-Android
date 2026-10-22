@@ -37,6 +37,7 @@ import com.rkawa.kakunote.ui.components.WaIcons
 import com.rkawa.kakunote.ui.favorites.FavoritesScreen
 import com.rkawa.kakunote.ui.lookup.LookupScreen
 import com.rkawa.kakunote.ui.search.SearchScreen
+import com.rkawa.kakunote.ui.settings.AppSettings
 import com.rkawa.kakunote.ui.settings.SettingsScreen
 import com.rkawa.kakunote.ui.theme.Wa
 
@@ -71,10 +72,12 @@ fun KakuNoteApp(data: KanjiData) {
     // お気に入りは「探す」の一覧と「お気に入り」タブで共有する
     val context = LocalContext.current
     val favorites = remember { FavoritesModel.open(context) }
+    // 設定（登録した姓など）は全部の画面で共有する
+    val settings = remember { AppSettings.open(context) }
     var favoriteDetail by remember { mutableStateOf<Favorite?>(null) }
 
     if (showsSettings) {
-        SettingsScreen(onClose = { showsSettings = false })
+        SettingsScreen(settings, data, onClose = { showsSettings = false })
         return
     }
 
@@ -119,6 +122,8 @@ fun KakuNoteApp(data: KanjiData) {
                     // 一覧から戻ったときも条件の入力が残るように、入力の画面の状態は別に保存する
                     null -> searchHolder.SaveableStateProvider("form") {
                         SearchScreen(
+                            registeredSei = settings.registeredSei,
+                            data = data,
                             onSearch = { searchStack = listOf(SearchRoute.Results(ResultListState(it))) },
                             onOpenSettings = openSettings,
                             modifier = modifier,
@@ -133,7 +138,7 @@ fun KakuNoteApp(data: KanjiData) {
                     }
                     is SearchRoute.Detail -> CandidateDetailScreen(route.sei, route.mei, data, school, popSearch, modifier)
                 }
-                AppTab.LOOKUP -> LookupScreen(data, openSettings, modifier)
+                AppTab.LOOKUP -> LookupScreen(data, settings.registeredSei, openSettings, modifier)
                 AppTab.FAVORITES -> when (val detail = favoriteDetail) {
                     null -> FavoritesScreen(
                         favorites = favorites, data = data, school = school, onOpenSettings = openSettings,

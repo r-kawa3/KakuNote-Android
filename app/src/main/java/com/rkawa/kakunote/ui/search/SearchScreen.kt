@@ -57,9 +57,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rkawa.kakunote.data.SeiCheck
+import com.rkawa.kakunote.logic.KakuKind
+import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.NameSearch
 import com.rkawa.kakunote.logic.ScriptFilter
 import com.rkawa.kakunote.logic.SearchQuery
+import com.rkawa.kakunote.ui.components.WaCheckbox
 import com.rkawa.kakunote.ui.components.WaIcons
 import com.rkawa.kakunote.ui.components.WaSectionLabel
 import com.rkawa.kakunote.ui.components.WaTabScreen
@@ -69,21 +73,29 @@ import com.rkawa.kakunote.ui.theme.Wa
 /**
  * 「探す」画面: 総画数（姓を使うなら総格）を一番上に大きく置き、名の文字数・名前の形（位置ごとの条件）を
  * 指定して、名前の候補を探す。「この条件で探す」ボタンは画面の下に固定し、押すと onSearch で候補の一覧に進む。
- * 姓・ほかの格・読みは、設定を作るチケット（09・10）で足す。
+ * 姓は設定画面で登録したもの（registeredSei）を使い、「姓を使う」をオフにすると名前だけで探す。
+ * 読みは、チケット 10 で足す。
  */
 @Composable
 fun SearchScreen(
+    registeredSei: String?,
+    data: KanjiData,
     onSearch: (SearchQuery) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var form by rememberSaveable(stateSaver = SearchFormSaver) { mutableStateOf(SearchForm()) }
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
+    /** 登録した姓を使うか（一番上のカードの「姓を使う」） */
+    var usesSei by rememberSaveable { mutableStateOf(true) }
+    var showsOtherKaku by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    /** 検索に使う姓。登録がない・「姓を使う」がオフなら null */
+    val sei = if (usesSei) registeredSei else null
 
     fun submit() {
         focusManager.clearFocus()
-        when (val result = form.toQuery()) {
+        when (val result = form.toQuery(sei)) {
             is FormResult.Invalid -> {
                 result.selectIndex?.let { form = form.copy(selectedIndex = it) }
                 formError = result.message
@@ -101,11 +113,22 @@ fun SearchScreen(
             modifier = Modifier.weight(1f),
         ) {
             TotalCard(
-                title = "総画数",
+                title = if (sei != null) "総格" else "総画数",
                 text = form.totalText,
                 onTextChange = { form = form.copy(totalText = it) },
                 onDone = { focusManager.clearFocus() },
-            )
+            ) {
+                if (registeredSei != null) SeiRow(registeredSei, usesSei, data) { usesSei = it }
+            }
+            if (sei != null) {
+                OtherKakuSection(
+                    expanded = showsOtherKaku,
+                    onToggle = { showsOtherKaku = !showsOtherKaku },
+                    texts = form.otherKakuTexts,
+                    onChange = { kind, text -> form = form.copy(otherKakuTexts = form.otherKakuTexts + (kind to text)) },
+                    onDone = { focusManager.clearFocus() },
+                )
+            }
             LengthSection(form.length) { form = form.withLength(it) }
             NameShapeSection(
                 form = form,
@@ -129,6 +152,7 @@ private fun TotalCard(
     text: String,
     onTextChange: (String) -> Unit,
     onDone: () -> Unit,
+    footer: @Composable () -> Unit,
 ) {
     Column(
         Modifier
@@ -170,6 +194,94 @@ private fun TotalCard(
                 modifier = Modifier.weight(1f),
             )
             Text("画", style = Wa.mincho(24.sp), color = Wa.onAccentFaint, modifier = Modifier.padding(bottom = 14.dp))
+        }
+        footer()
+    }
+}
+
+/** 登録した姓の行: 「姓「田中」・天格 9画」と「姓を使う」。 */
+@Composable
+private fun SeiRow(registered: String, usesSei: Boolean, data: KanjiData, onUsesSeiChange: (Boolean) -> Unit) {
+    val check = remember(registered, data) { SeiCheck.of(registered, data) }
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "姓「$registered」",
+                    style = Wa.gothic(13.sp, FontWeight.Bold),
+                    color = Wa.onAccent.copy(alpha = if (usesSei) 1f else 0.6f),
+                    modifier = Modifier.testTag("search.sei"),
+                )
+                if (usesSei && check is SeiCheck.Tenkaku) {
+                    Text("・天格", style = Wa.gothic(13.sp, FontWeight.Bold), color = Wa.onAccent)
+                    Text("${check.value}画", style = Wa.mincho(17.sp, bold = true), color = Wa.onAccent, modifier = Modifier.testTag("search.tenkaku"))
+                }
+            }
+            if (usesSei && check is SeiCheck.Problem) {
+                Text(check.message, style = Wa.gothic(13.sp), color = Wa.onAccent, modifier = Modifier.testTag("search.tenkaku.error"))
+            }
+        }
+        WaCheckbox("姓を使う", usesSei, onUsesSeiChange, color = Wa.onAccent, modifier = Modifier.testTag("search.useSei"))
+    }
+}
+
+/** 姓ありのとき、折りたたみの中で人格・地格・外格を条件にする。 */
+@Composable
+private fun OtherKakuSection(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    texts: Map<KakuKind, String>,
+    onChange: (KakuKind, String) -> Unit,
+    onDone: () -> Unit,
+) {
+    val notes = mapOf(
+        KakuKind.JINKAKU to ("人格" to "姓の末尾＋名の先頭"),
+        KakuKind.CHIKAKU to ("地格" to "名の合計"),
+        KakuKind.GAIKAKU to ("外格" to "総格−人格"),
+    )
+    Column(Modifier.fillMaxWidth().waCard()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 48.dp)
+                .clickable(role = Role.Button, onClick = onToggle)
+                .padding(horizontal = 16.dp)
+                .testTag("search.otherKaku")
+                .semantics { stateDescription = if (expanded) "開いている" else "閉じている" },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("ほかの格も条件にする（人格・地格・外格）", style = Wa.gothic(15.sp), color = Wa.ink, modifier = Modifier.weight(1f))
+            Text(if (expanded) "︿" else "﹀", style = Wa.gothic(14.sp, FontWeight.Bold), color = Wa.accent)
+        }
+        if (expanded) {
+            for ((index, kind) in SearchForm.OTHER_KAKU_KINDS.withIndex()) {
+                val (title, note) = notes.getValue(kind)
+                androidx.compose.material3.HorizontalDivider(color = Wa.divider, modifier = Modifier.padding(horizontal = 16.dp))
+                Row(
+                    Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp).padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column {
+                        Text(title, style = Wa.gothic(15.sp, FontWeight.Bold), color = Wa.ink)
+                        Text(note, style = Wa.gothic(11.sp), color = Wa.secondaryText)
+                    }
+                    NumberField(
+                        value = texts[kind] ?: "",
+                        onValueChange = { onChange(kind, it) },
+                        placeholder = "例: 15",
+                        textStyle = Wa.mincho(20.sp, bold = true).copy(color = Wa.ink, textAlign = TextAlign.End),
+                        placeholderColor = Wa.placeholder,
+                        cursor = Wa.accent,
+                        label = title,
+                        tag = "search.kaku.${kind.raw}",
+                        onDone = onDone,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("画", style = Wa.gothic(16.sp), color = Wa.secondaryText)
+                }
+                if (index == SearchForm.OTHER_KAKU_KINDS.lastIndex) Spacer(Modifier.height(4.dp))
+            }
         }
     }
 }
@@ -500,10 +612,12 @@ private fun SubmitBar(
 private val SearchFormSaver = Saver<SearchForm, List<Any>>(
     save = { form ->
         listOf<Any>(form.length, form.selectedIndex, form.totalText) +
+            SearchForm.OTHER_KAKU_KINDS.map { form.otherKakuTexts[it] ?: "" } +
             form.positions.flatMap { listOf(it.kind.name, it.script.name, it.strokesText, it.fixedText) }
     },
     restore = { list ->
-        val positions = list.drop(3).chunked(4).map {
+        val others = SearchForm.OTHER_KAKU_KINDS.withIndex().associate { (i, kind) -> kind to (list[3 + i] as String) }
+        val positions = list.drop(3 + SearchForm.OTHER_KAKU_KINDS.size).chunked(4).map {
             PositionInput(
                 kind = PositionKind.valueOf(it[0] as String),
                 script = ScriptFilter.valueOf(it[1] as String),
@@ -511,6 +625,9 @@ private val SearchFormSaver = Saver<SearchForm, List<Any>>(
                 fixedText = it[3] as String,
             )
         }
-        SearchForm(length = list[0] as Int, positions = positions, selectedIndex = list[1] as Int, totalText = list[2] as String)
+        SearchForm(
+            length = list[0] as Int, positions = positions, selectedIndex = list[1] as Int, totalText = list[2] as String,
+            otherKakuTexts = others,
+        )
     },
 )

@@ -18,24 +18,19 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.rkawa.kakunote.MainActivity
+import com.rkawa.kakunote.ResetAppData
 import com.rkawa.kakunote.data.FavoriteStore
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
 
 /** お気に入り: 一覧のハートで保存・削除し、「お気に入り」タブで見比べる。 */
 @RunWith(AndroidJUnit4::class)
 class FavoritesTest {
 
-    /** アプリを開く前に、お気に入りを空にする */
     @get:Rule(order = 0)
-    val reset = object : ExternalResource() {
-        override fun before() {
-            InstrumentationRegistry.getInstrumentation().targetContext.deleteDatabase(FavoriteStore.FILE_NAME)
-        }
-    }
+    val reset = ResetAppData()
 
     @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()

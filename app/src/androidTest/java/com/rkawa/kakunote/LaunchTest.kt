@@ -17,7 +17,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class LaunchTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val reset = ResetAppData()
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()
 
     private fun waitForHeading(title: String) {

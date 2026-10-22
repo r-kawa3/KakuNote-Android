@@ -28,26 +28,40 @@ import androidx.compose.ui.unit.sp
 import com.rkawa.kakunote.logic.KakuSchool
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.ShinjitaiSchool
+import com.rkawa.kakunote.ui.components.WaCheckbox
 import com.rkawa.kakunote.ui.components.WaTabScreen
 import com.rkawa.kakunote.ui.components.waCard
 import com.rkawa.kakunote.ui.theme.Wa
 
-/** 「調べる」画面: 姓名を入れると、各字の画数と五格が出る。 */
+/**
+ * 「調べる」画面: 姓名を入れると、各字の画数と五格が出る。
+ * 設定に姓があるときは「登録した姓を使う」（初期値オン）。オンのときは登録した姓が入って変えられず、オフで自由に入力できる。
+ */
 @Composable
 fun LookupScreen(
     data: KanjiData,
+    registeredSei: String?,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     school: KakuSchool = ShinjitaiSchool,
 ) {
-    var sei by rememberSaveable { mutableStateOf("") }
+    var typedSei by rememberSaveable { mutableStateOf("") }
     var mei by rememberSaveable { mutableStateOf("") }
+    var usesRegisteredSei by rememberSaveable { mutableStateOf(true) }
+    val appliedSei = if (usesRegisteredSei) registeredSei else null
+    val sei = appliedSei ?: typedSei
     val state = remember(sei, mei, data) { LookupState.of(sei, mei, data, school) }
 
     WaTabScreen(seal = "画", title = "画数を調べる", onOpenSettings = onOpenSettings, modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (registeredSei != null) {
+                WaCheckbox(
+                    "登録した姓を使う", usesRegisteredSei, { usesRegisteredSei = it }, color = Wa.accent,
+                    modifier = Modifier.padding(horizontal = 4.dp).testTag("lookup.useSei"),
+                )
+            }
             Column(Modifier.fillMaxWidth().waCard()) {
-                InputRow("姓", sei, { sei = it }, "例：田中", "lookup.sei")
+                InputRow("姓", sei, { typedSei = it }, "例：田中", "lookup.sei", enabled = appliedSei == null)
                 HorizontalDivider(color = Wa.divider)
                 InputRow("名", mei, { mei = it }, "例：健太", "lookup.mei")
             }
@@ -72,7 +86,14 @@ fun LookupScreen(
 }
 
 @Composable
-private fun InputRow(label: String, value: String, onValueChange: (String) -> Unit, placeholder: String, tag: String) {
+private fun InputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    tag: String,
+    enabled: Boolean = true,
+) {
     Row(
         Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -87,7 +108,8 @@ private fun InputRow(label: String, value: String, onValueChange: (String) -> Un
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
-            textStyle = Wa.mincho(20.sp).copy(color = Wa.ink),
+            enabled = enabled,
+            textStyle = Wa.mincho(20.sp).copy(color = if (enabled) Wa.ink else Wa.ink.copy(alpha = 0.7f)),
             cursorBrush = SolidColor(Wa.accent),
             modifier = Modifier.weight(1f).testTag(tag).semantics { contentDescription = label },
             decorationBox = { inner ->

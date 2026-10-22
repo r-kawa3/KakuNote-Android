@@ -41,6 +41,25 @@ class SearchFormTest {
     }
 
     @Test
+    fun otherKakuOnlyWithSei() {
+        val form = SearchForm(
+            totalText = "24",
+            otherKakuTexts = mapOf(KakuKind.JINKAKU to "15", KakuKind.GAIKAKU to "", KakuKind.CHIKAKU to "11, 12"),
+        )
+        val withSei = form.toQuery(sei = "田中") as FormResult.Ready
+        assertEquals(
+            mapOf(KakuKind.SOUKAKU to setOf(24), KakuKind.JINKAKU to setOf(15), KakuKind.CHIKAKU to setOf(11, 12)),
+            withSei.query.conditions,
+        )
+        // 姓を使わないときは、ほかの格の入力は使わない
+        val nameOnly = form.toQuery() as FormResult.Ready
+        assertEquals(mapOf(KakuKind.CHIKAKU to setOf(24)), nameOnly.query.conditions)
+        // 総格が空でも、ほかの格があれば探せる
+        val onlyOther = SearchForm(otherKakuTexts = mapOf(KakuKind.JINKAKU to "15")).toQuery(sei = "田中") as FormResult.Ready
+        assertEquals(mapOf(KakuKind.JINKAKU to setOf(15)), onlyOther.query.conditions)
+    }
+
+    @Test
     fun missingTotal() {
         assertEquals(FormResult.Invalid("総画数を入力してください"), SearchForm().toQuery())
         assertEquals(FormResult.Invalid("総格か、ほかの格の画数を入力してください"), SearchForm().toQuery(sei = "田中"))
