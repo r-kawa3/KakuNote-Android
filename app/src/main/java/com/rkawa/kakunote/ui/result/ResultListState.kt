@@ -18,8 +18,9 @@ import kotlinx.coroutines.withContext
 /**
  * 候補の一覧の状態。検索（内訳の列挙）はバックグラウンドで 1 回だけ行い、
  * 候補はページごとに作って足していく（遅延生成）。詳細から戻っても、読み込んだ行とスクロールの位置は残る。
+ * firstIndex・firstOffset は、アプリを開き直したときに戻すスクロールの位置（一覧の項目の番号。上のチップと件数を含む）。
  */
-class ResultListState(val query: SearchQuery) {
+class ResultListState(val query: SearchQuery, private val firstIndex: Int = 0, firstOffset: Int = 0) {
 
     sealed class Phase {
         data object Loading : Phase()
@@ -32,7 +33,7 @@ class ResultListState(val query: SearchQuery) {
     val rows = mutableStateListOf<ResultRow>()
 
     /** 一覧のスクロールの位置（詳細から戻っても同じ位置に出す） */
-    val listState = LazyListState()
+    val listState = LazyListState(firstIndex, firstOffset)
 
     /** 一覧の上に並べる条件のチップ */
     val chips: List<SearchSummary.Chip> = SearchSummary.chips(query)
@@ -48,6 +49,8 @@ class ResultListState(val query: SearchQuery) {
             val made = withContext(Dispatchers.Default) { NameSearch(query, data, school) }
             search = made
             loadMore()
+            // 開き直したときは、スクロールの位置まで読み込んでおく
+            while (rows.size < firstIndex && hasMore) loadMore()
             Phase.Ready(made.total)
         } catch (error: CancellationException) {
             throw error

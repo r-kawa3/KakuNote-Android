@@ -99,6 +99,7 @@ class SearchScreenTest {
         compose.onNodeWithTag("search.cell.1").assertTextContains("陽", substring = true)
         compose.onNodeWithTag("search.cell.2").performClick()
         compose.onNodeWithTag("search.script").performClick()
+        compose.waitUntil { compose.onAllNodes(hasTestTag("search.script.hiragana")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("search.script.hiragana").performClick()
         assertTrue(submitAndWaitForCount().contains("[31件]"))
     }

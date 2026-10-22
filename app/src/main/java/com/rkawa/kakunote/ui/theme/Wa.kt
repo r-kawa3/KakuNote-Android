@@ -89,6 +89,8 @@ object Wa {
         val primaryButtonHeight = 56.dp
         /** 見出し横の印（朱の四角）の大きさ */
         val sealSize = 28.dp
+        /** 中身の幅の上限。タブレットや折りたたみの広い画面では、この幅で真ん中に置く */
+        val maxContentWidth = 640.dp
     }
 
     private fun color(hex: Int) = Color(0xFF000000.toInt() or hex)

@@ -54,6 +54,7 @@ import com.rkawa.kakunote.data.CharList
 import com.rkawa.kakunote.data.SeiCheck
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.ui.components.WaTopBar
+import com.rkawa.kakunote.ui.components.waContentWidth
 import com.rkawa.kakunote.ui.components.waCard
 import com.rkawa.kakunote.ui.theme.Wa
 
@@ -65,7 +66,7 @@ import com.rkawa.kakunote.ui.theme.Wa
 fun SettingsScreen(settings: AppSettings, data: KanjiData, onClose: () -> Unit) {
     var showsAbout by rememberSaveable { mutableStateOf(false) }
     BackHandler { if (showsAbout) showsAbout = false else onClose() }
-    Column(Modifier.fillMaxSize().background(Wa.background).safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().background(Wa.background).safeDrawingPadding().waContentWidth()) {
         if (showsAbout) {
             AboutScreen(data, onBack = { showsAbout = false })
         } else {

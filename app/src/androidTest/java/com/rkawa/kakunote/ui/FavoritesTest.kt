@@ -107,9 +107,10 @@ class FavoritesTest {
     fun keepsAfterRestart() {
         searchTwoStrokes()
         compose.onNodeWithTag("favorite.toggle.乙一").performClick()
-        // 画面を作り直しても（「探す」は条件の入力に戻る）、お気に入りは残っている
+        // 画面を作り直しても、一覧もお気に入りも残っている
         compose.activityRule.scenario.recreate()
-        waitForHeading("名前を探す")
+        waitForHeading("候補")
+        compose.onNodeWithTag("favorite.toggle.乙一").assertContentDescriptionEquals("お気に入りから外す")
         openFavoritesTab()
         compose.onNodeWithTag("favorites.total").assertTextEquals("1件")
         compose.activityRule.scenario.close()

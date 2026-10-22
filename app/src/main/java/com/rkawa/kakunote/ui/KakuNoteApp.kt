@@ -14,30 +14,27 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rkawa.kakunote.data.Favorite
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rkawa.kakunote.logic.KakuSchool
-import com.rkawa.kakunote.ui.favorites.FavoritesModel
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.ShinjitaiSchool
 import com.rkawa.kakunote.ui.result.CandidateDetailScreen
 import com.rkawa.kakunote.ui.result.ResultListState
 import com.rkawa.kakunote.ui.result.ResultScreen
 import com.rkawa.kakunote.ui.components.WaIcons
+import com.rkawa.kakunote.ui.components.waContentWidth
 import com.rkawa.kakunote.ui.favorites.FavoritesScreen
 import com.rkawa.kakunote.ui.lookup.LookupScreen
 import com.rkawa.kakunote.ui.search.SearchScreen
-import com.rkawa.kakunote.ui.settings.AppSettings
 import com.rkawa.kakunote.ui.settings.SettingsScreen
 import com.rkawa.kakunote.ui.theme.Wa
 
@@ -48,33 +45,24 @@ enum class AppTab(val label: String, val icon: ImageVector) {
     FAVORITES("お気に入り", WaIcons.Heart),
 }
 
-/** 「探す」タブの中で進んだ先の画面。 */
-sealed class SearchRoute {
-    /** 候補の一覧。一覧の状態（読み込んだ行）をここに持つので、詳細から戻っても残る */
-    class Results(val state: ResultListState) : SearchRoute()
-
-    class Detail(val sei: String?, val mei: String) : SearchRoute()
-}
-
 /**
  * アプリの骨組み: 下のタブ（探す・調べる・お気に入り）と、どの画面からも開ける設定画面。
- * タブは状態だけで切り替える。「探す」タブの中で進んだ先（候補の一覧・詳細）は、ここで履歴として持つ
- * （タブを切り替えても残る）。戻るのは、上の「‹ 戻る」と端末の戻る操作。
+ * タブは状態だけで切り替える。進んだ先（「探す」の一覧・詳細、「お気に入り」の詳細）は AppNavigation に履歴として持つ
+ * （タブを切り替えても、画面が作り直されても残る）。戻るのは、上の「‹ 戻る」と端末の戻る操作。
  */
 @Composable
-fun KakuNoteApp(data: KanjiData) {
+fun KakuNoteApp(data: KanjiData, navigation: AppNavigation = viewModel(), appData: AppData = viewModel()) {
     var selectedTab by rememberSaveable { mutableStateOf(AppTab.SEARCH) }
     var showsSettings by rememberSaveable { mutableStateOf(false) }
     val stateHolder = rememberSaveableStateHolder()
-    var searchStack by remember { mutableStateOf(listOf<SearchRoute>()) }
+    var searchStack by navigation::searchStack
     val searchHolder = rememberSaveableStateHolder()
     val school: KakuSchool = ShinjitaiSchool
     // お気に入りは「探す」の一覧と「お気に入り」タブで共有する
-    val context = LocalContext.current
-    val favorites = remember { FavoritesModel.open(context) }
+    val favorites = appData.favorites
     // 設定（登録した姓など）は全部の画面で共有する
-    val settings = remember { AppSettings.open(context) }
-    var favoriteDetail by remember { mutableStateOf<Favorite?>(null) }
+    val settings = appData.settings
+    var favoriteDetail by navigation::favoriteDetail
 
     if (showsSettings) {
         SettingsScreen(settings, data, onClose = { showsSettings = false })
@@ -109,8 +97,8 @@ fun KakuNoteApp(data: KanjiData) {
             }
         },
     ) { padding ->
-        // キーボードが出ているときも、画面の下の方までスクロールで届くようにする
-        val modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding()
+        // キーボードが出ているときも、画面の下の方までスクロールで届くようにする。広い画面では中身を真ん中に置く
+        val modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding().waContentWidth()
         val openSettings = { showsSettings = true }
         // タブを切り替えても、各タブの入力やスクロールの位置を残す
         val popSearch = { searchStack = searchStack.dropLast(1) }
@@ -132,17 +120,19 @@ fun KakuNoteApp(data: KanjiData) {
                     is SearchRoute.Results -> key(route) {
                         ResultScreen(
                             state = route.state, data = data, school = school, favorites = favorites, onBack = popSearch,
-                            onSelect = { row -> searchStack = searchStack + SearchRoute.Detail(route.state.query.sei, row.name) },
+                            onSelect = { row ->
+                                searchStack = searchStack + SearchRoute.Detail(DetailTarget(route.state.query.sei, row.name))
+                            },
                             modifier = modifier,
                         )
                     }
-                    is SearchRoute.Detail -> CandidateDetailScreen(route.sei, route.mei, data, school, popSearch, modifier)
+                    is SearchRoute.Detail -> CandidateDetailScreen(route.target.sei, route.target.mei, data, school, popSearch, modifier)
                 }
                 AppTab.LOOKUP -> LookupScreen(data, settings.registeredSei, openSettings, modifier)
                 AppTab.FAVORITES -> when (val detail = favoriteDetail) {
                     null -> FavoritesScreen(
                         favorites = favorites, data = data, school = school, onOpenSettings = openSettings,
-                        onSelect = { favoriteDetail = it },
+                        onSelect = { favoriteDetail = DetailTarget(it.sei, it.mei) },
                         onGoSearch = { selectedTab = AppTab.SEARCH },
                         modifier = modifier,
                     )

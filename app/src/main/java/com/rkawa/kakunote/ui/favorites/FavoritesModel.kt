@@ -13,7 +13,7 @@ import com.rkawa.kakunote.logic.SearchQuery
  * 画面が共有するお気に入りの状態。「探す」の一覧と「お気に入り」タブの両方から使う。
  * 保存は小さな SQLite に 1 行書くだけなので、その場で行う。
  */
-class FavoritesModel(private val store: FavoriteStore?) {
+class FavoritesModel(private val store: FavoriteStore?, private val onClose: () -> Unit = {}) {
 
     var items by mutableStateOf<List<Favorite>>(emptyList())
         private set
@@ -53,6 +53,9 @@ class FavoritesModel(private val store: FavoriteStore?) {
         reload()
     }
 
+    /** 保存の DB を閉じる（このあとは使わない） */
+    fun close() = onClose()
+
     private fun reload() {
         val store = store ?: return
         try {
@@ -66,12 +69,19 @@ class FavoritesModel(private val store: FavoriteStore?) {
     companion object {
         /** アプリが使うお気に入り（アプリの databases の favorites.sqlite。同梱の漢字 DB とは別）。 */
         fun open(context: Context): FavoritesModel {
-            val store = try {
-                FavoriteStore(AndroidWritableSql(context.getDatabasePath(FavoriteStore.FILE_NAME).apply { parentFile?.mkdirs() }))
+            val sql = try {
+                AndroidWritableSql(context.getDatabasePath(FavoriteStore.FILE_NAME).apply { parentFile?.mkdirs() })
             } catch (_: Exception) {
                 null
             }
-            return FavoritesModel(store)
+            val store = sql?.let {
+                try {
+                    FavoriteStore(it)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            return FavoritesModel(store) { sql?.close() }
         }
     }
 }
