@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- いつも明るい色（端末がダークモードでも変えない） -->
-    <style name="Theme.KakuNote" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- いつも明るい色（端末がダークモードでも変えない）。起動の瞬間の背景も生成り色にする -->
+    <style name="Theme.KakuNote" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/wa_background</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
 </resources>
