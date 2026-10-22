@@ -20,13 +20,19 @@ class WaThemeTest {
             Triple("藍の上の文字 / 藍", Wa.Hex.ON_ACCENT to Wa.Hex.ACCENT, 4.5),
             Triple("藍 / 生成り", Wa.Hex.ACCENT to Wa.Hex.BACKGROUND, 4.5),
             Triple("朱の上の文字 / 朱", Wa.Hex.ON_ACCENT to Wa.Hex.SEAL, 4.5),
-            // 入力欄の例文は大きめの文字なので 3:1 でよい
-            Triple("例文 / カードの面", Wa.Hex.PLACEHOLDER to Wa.Hex.SURFACE, 3.0),
         )
         for ((name, colors, minimum) in pairs) {
             val ratio = contrast(colors.first, colors.second)
             assertTrue("$name: $ratio", ratio >= minimum)
         }
+    }
+
+    /** 入力欄の例文は、読めるが、入力した文字と見間違えない薄さ（明るさの差が 2〜3 の間）。 */
+    @Test
+    fun placeholderIsLightButReadable() {
+        val ratio = contrast(Wa.Hex.PLACEHOLDER, Wa.Hex.SURFACE)
+        assertTrue("例文 / カードの面: $ratio", ratio in 2.0..3.0)
+        assertTrue("文字 / カードの面 は例文よりずっと濃い", contrast(Wa.Hex.INK, Wa.Hex.SURFACE) > ratio * 4)
     }
 
     private fun contrast(a: Int, b: Int): Double {

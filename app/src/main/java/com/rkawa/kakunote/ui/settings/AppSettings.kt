@@ -48,3 +48,15 @@ class AppSettings(private val store: SettingsStore?) {
         fun open(context: Context) = AppSettings(SettingsStore(File(context.filesDir, SettingsStore.FILE_NAME)))
     }
 }
+
+/** アプリのバージョン（例: 1.0.0。build.gradle.kts の versionName）。 */
+fun appVersion(context: Context): String {
+    val manager = context.packageManager
+    val info = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        manager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+    } else {
+        @Suppress("DEPRECATION")
+        manager.getPackageInfo(context.packageName, 0)
+    }
+    return info.versionName ?: "不明"
+}

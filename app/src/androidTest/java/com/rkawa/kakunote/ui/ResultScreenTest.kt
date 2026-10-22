@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.test.espresso.Espresso
@@ -85,25 +86,14 @@ class ResultScreenTest {
     @Test
     fun emptyResult() {
         compose.onNodeWithTag("search.total").performTextInput("1")
-        compose.onNodeWithTag("search.kind.fixed").performClick()
-        compose.onNodeWithTag("search.fixed").performTextInput("陽")
+        compose.onNodeWithTag("search.cell.1").performScrollTo().performClick()
+        compose.onNodeWithTag("search.kind.fixed").performScrollTo().performClick()
+        compose.onNodeWithTag("search.fixed").performScrollTo().performTextInput("陽")
         compose.onNodeWithTag("search.submit").performClick()
         compose.waitUntil(timeoutMillis = 10_000) {
             compose.onAllNodes(hasTestTag("result.empty")).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("該当する名前がありません").assertExists()
-    }
-
-    @Test
-    fun errorResult() {
-        compose.onNodeWithTag("search.total").performTextInput("2")
-        compose.onNodeWithTag("search.kind.fixed").performClick()
-        compose.onNodeWithTag("search.fixed").performTextInput("陽菜")
-        compose.onNodeWithTag("search.submit").performClick()
-        compose.waitUntil(timeoutMillis = 10_000) {
-            compose.onAllNodes(hasTestTag("result.error")).fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.onNodeWithText("1文字目に固定する字は 1 文字にしてください").assertExists()
     }
 
     @Test

@@ -33,8 +33,8 @@ object Wa {
         const val INK = 0x2A2723
         /** 補足の文字 */
         const val SECONDARY_TEXT = 0x6B6455
-        /** 入力欄の例文 */
-        const val PLACEHOLDER = 0x7A7260
+        /** 入力欄の例文。入力した文字と見間違えないように、薄くしている（iOS は #7A7260） */
+        const val PLACEHOLDER = 0xB3AA96
         /** 点線の枠 */
         const val DASHED = 0xA89C82
         /** アクセント（藍） */
@@ -59,6 +59,9 @@ object Wa {
     val accent = color(Hex.ACCENT)
     val onAccent = color(Hex.ON_ACCENT)
     val onAccentFaint = color(Hex.ON_ACCENT_FAINT)
+
+    /** 藍のカードの入力欄の例文（藍・朱の上の文字を薄くしたもの） */
+    val onAccentPlaceholder = onAccent.copy(alpha = 0.25f)
     val seal = color(Hex.SEAL)
 
     /**

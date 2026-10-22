@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -86,7 +87,6 @@ fun SearchScreen(
     modifier: Modifier = Modifier,
 ) {
     var form by rememberSaveable(stateSaver = SearchFormSaver) { mutableStateOf(SearchForm()) }
-    var formError by rememberSaveable { mutableStateOf<String?>(null) }
     /** 登録した姓を使うか（一番上のカードの「姓を使う」） */
     var usesSei by rememberSaveable { mutableStateOf(true) }
     var showsOtherKaku by rememberSaveable { mutableStateOf(false) }
@@ -97,19 +97,16 @@ fun SearchScreen(
     /** 検索に使う姓。登録がない・「姓を使う」がオフなら null */
     val sei = if (usesSei) registeredSei else null
 
+    // 押す前に、探せる入力かを調べる。探せないときは「この条件で探す」を押せなくし、理由を出す
+    val check = remember(form, sei, reading, settings, data) {
+        form.check(data, sei, reading, settings.avoidChars, settings.useChars, settings.readingPrefix)
+    }
+
     fun submit() {
         focusManager.clearFocus()
         reading = SearchForm.hiragana(reading)
-        when (val result = form.toQuery(sei, reading, settings.avoidChars, settings.useChars, settings.readingPrefix)) {
-            is FormResult.Invalid -> {
-                result.selectIndex?.let { form = form.copy(selectedIndex = it) }
-                formError = result.message
-            }
-            is FormResult.Ready -> {
-                formError = null
-                onSearch(result.query)
-            }
-        }
+        val ready = form.check(data, sei, reading, settings.avoidChars, settings.useChars, settings.readingPrefix)
+        if (ready is FormResult.Ready) onSearch(ready.query)
     }
 
     Column(modifier.fillMaxSize()) {
@@ -123,7 +120,11 @@ fun SearchScreen(
                 onTextChange = { form = form.copy(totalText = it) },
                 onDone = { focusManager.clearFocus() },
             ) {
-                if (registeredSei != null) SeiRow(registeredSei, usesSei, data) { usesSei = it }
+                if (registeredSei != null) {
+                    SeiRow(registeredSei, usesSei, data) { usesSei = it }
+                } else {
+                    SeiPrompt(onOpenSettings)
+                }
             }
             // カタカナは、入力を終えたとき（完了・この条件で探す）にひらがなに直す。打っている途中で直すと、
             // 日本語入力の変換を邪魔してしまうため
@@ -147,13 +148,13 @@ fun SearchScreen(
             LengthSection(form.length) { form = form.withLength(it) }
             NameShapeSection(
                 form = form,
-                onSelect = { form = form.copy(selectedIndex = it) },
+                onSelect = { form = form.toggleSelection(it) },
                 onChange = { change -> form = form.updateSelected(change) },
                 onDone = { focusManager.clearFocus() },
             )
         }
         SubmitBar(
-            formError = formError,
+            problem = (check as? FormResult.Invalid)?.message,
             onSubmit = ::submit,
         )
     }
@@ -161,6 +162,7 @@ fun SearchScreen(
 
 // MARK: - 総画数（総格）のカード
 
+/** 一番上の藍のカード: 総画数（姓を使うなら総格）。値は 1 つだけで、真ん中に大きく出す。 */
 @Composable
 private fun TotalCard(
     title: String,
@@ -176,13 +178,18 @@ private fun TotalCard(
             .padding(start = 22.dp, top = 16.dp, end = 22.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(title, style = Wa.gothic(13.sp, FontWeight.Bold).copy(letterSpacing = 2.sp), color = Wa.onAccent)
-            Spacer(Modifier.weight(1f))
-            Text("複数は「,」で区切ります", style = Wa.gothic(11.sp), color = Wa.onAccentFaint)
-        }
-        Row(
-            Modifier
+        Text(title, style = Wa.gothic(13.sp, FontWeight.Bold).copy(letterSpacing = 2.sp), color = Wa.onAccent)
+        val style = Wa.mincho(64.sp, bold = true).copy(color = Wa.onAccent, textAlign = TextAlign.Center)
+        BasicTextField(
+            value = text,
+            // 数字だけ、3 桁まで
+            onValueChange = { onTextChange(it.filter(Char::isDigit).take(3)) },
+            singleLine = true,
+            textStyle = style,
+            cursorBrush = SolidColor(Wa.onAccent),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onDone() }),
+            modifier = Modifier
                 .fillMaxWidth()
                 .drawBehind {
                     drawLine(
@@ -192,25 +199,43 @@ private fun TotalCard(
                         strokeWidth = 1.dp.toPx(),
                     )
                 }
-                .padding(bottom = 4.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            NumberField(
-                value = text,
-                onValueChange = onTextChange,
-                placeholder = "20",
-                textStyle = Wa.mincho(64.sp, bold = true).copy(color = Wa.onAccent),
-                placeholderColor = Wa.onAccent.copy(alpha = 0.4f),
-                cursor = Wa.onAccent,
-                label = title,
-                tag = "search.total",
-                onDone = onDone,
-                modifier = Modifier.weight(1f),
-            )
-            Text("画", style = Wa.mincho(24.sp), color = Wa.onAccentFaint, modifier = Modifier.padding(bottom = 14.dp))
-        }
+                .padding(bottom = 4.dp)
+                .testTag("search.total")
+                .semantics { contentDescription = title },
+            // 数字はカードの真ん中、「画」は右の端に置く
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxWidth()) {
+                    if (text.isEmpty()) {
+                        Text("20", style = style.copy(color = Wa.onAccentPlaceholder), modifier = Modifier.fillMaxWidth())
+                    }
+                    inner()
+                    // 「画」は飾り。入力した値と一緒に読み上げない
+                    Text(
+                        "画", style = Wa.mincho(24.sp), color = Wa.onAccentFaint,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 14.dp).clearAndSetSemantics { },
+                    )
+                }
+            },
+        )
         footer()
+    }
+}
+
+/** 姓が未登録のときの行: 姓を登録すると総格で探せることと、設定画面へ進むボタン。 */
+@Composable
+private fun SeiPrompt(onOpenSettings: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("姓を登録すると、総格で探せます", style = Wa.gothic(13.sp), color = Wa.onAccentFaint, modifier = Modifier.weight(1f))
+        Box(
+            Modifier
+                .defaultMinSize(minHeight = Wa.Metrics.minTapSize)
+                .clickable(role = Role.Button, onClick = onOpenSettings)
+                .padding(horizontal = 4.dp)
+                .testTag("search.setSei"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("姓を設定する ›", style = Wa.gothic(13.sp, FontWeight.Bold), color = Wa.onAccent)
+        }
     }
 }
 
@@ -435,8 +460,14 @@ private fun NameShapeSection(
                 NameCell(form.positions[index], index, isSelected = index == form.selectedIndex) { onSelect(index) }
             }
         }
-        KindTabs(form.selected.kind) { kind -> onChange { it.copy(kind = kind) } }
-        PositionDetail(form.selected, onChange, onDone)
+        // マスを選んだときだけ、そのマスの条件（自由／画数指定／固定）の欄を出す
+        val selected = form.selected
+        if (selected == null) {
+            Text("マスを押すと、その文字の条件を選べます", style = Wa.gothic(12.sp), color = Wa.secondaryText)
+        } else {
+            KindTabs(selected.kind) { kind -> onChange { it.copy(kind = kind) } }
+            PositionDetail(selected, onChange, onDone)
+        }
     }
 }
 
@@ -620,9 +651,10 @@ private fun DetailRow(title: String, content: @Composable () -> Unit) {
 
 @Composable
 private fun SubmitBar(
-    formError: String?,
+    problem: String?,
     onSubmit: () -> Unit,
 ) {
+    val enabled = problem == null
     Column(
         Modifier
             .fillMaxWidth()
@@ -631,15 +663,16 @@ private fun SubmitBar(
             .padding(top = 6.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (formError != null) {
-            Text(formError, style = Wa.gothic(13.sp), color = Wa.seal, modifier = Modifier.fillMaxWidth().testTag("search.formError"))
+        // 押せないときは、その理由（足りない入力など）をボタンの上に出す
+        if (problem != null) {
+            Text(problem, style = Wa.gothic(13.sp), color = Wa.secondaryText, modifier = Modifier.fillMaxWidth().testTag("search.formError"))
         }
         Row(
             Modifier
                 .fillMaxWidth()
                 .height(Wa.Metrics.primaryButtonHeight)
-                .background(Wa.accent, RoundedCornerShape(14.dp))
-                .clickable(role = Role.Button, onClick = onSubmit)
+                .background(Wa.accent.copy(alpha = if (enabled) 1f else 0.35f), RoundedCornerShape(14.dp))
+                .clickable(enabled = enabled, role = Role.Button, onClick = onSubmit)
                 .testTag("search.submit"),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
@@ -654,7 +687,7 @@ private fun SubmitBar(
 /** 入力を、画面を回したり作り直したりしても残す（文字列と数の並びにして保存する） */
 private val SearchFormSaver = Saver<SearchForm, List<Any>>(
     save = { form ->
-        listOf<Any>(form.length, form.selectedIndex, form.totalText) +
+        listOf<Any>(form.length, form.selectedIndex ?: -1, form.totalText) +
             SearchForm.OTHER_KAKU_KINDS.map { form.otherKakuTexts[it] ?: "" } +
             form.positions.flatMap { listOf(it.kind.name, it.script.name, it.strokesText, it.fixedText) }
     },
@@ -669,7 +702,7 @@ private val SearchFormSaver = Saver<SearchForm, List<Any>>(
             )
         }
         SearchForm(
-            length = list[0] as Int, positions = positions, selectedIndex = list[1] as Int, totalText = list[2] as String,
+            length = list[0] as Int, positions = positions, selectedIndex = (list[1] as Int).takeIf { it >= 0 }, totalText = list[2] as String,
             otherKakuTexts = others,
         )
     },

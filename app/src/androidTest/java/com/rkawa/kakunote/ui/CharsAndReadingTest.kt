@@ -1,5 +1,6 @@
 package com.rkawa.kakunote.ui
 
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -58,7 +59,7 @@ class CharsAndReadingTest {
     /** 探して、件数（例: 「1件」）か、0 件・エラーの画面の目印を返す */
     private fun search(total: String, reading: String? = null): String {
         compose.onNodeWithTag("search.total").performTextInput(total)
-        reading?.let { compose.onNodeWithTag("search.reading").performTextInput(it) }
+        reading?.let { compose.onNodeWithTag("search.reading").performScrollTo().performTextInput(it) }
         compose.onNodeWithTag("search.submit").performClick()
         compose.waitUntil(timeoutMillis = 10_000) {
             listOf("result.total", "result.empty", "result.error").any {
@@ -116,7 +117,7 @@ class CharsAndReadingTest {
 
     @Test
     fun katakanaReadingBecomesHiragana() {
-        compose.onNodeWithTag("search.reading").performTextInput("ハルト")
+        compose.onNodeWithTag("search.reading").performScrollTo().performTextInput("ハルト")
         compose.onNodeWithTag("search.reading").performImeAction()
         compose.onNodeWithTag("search.reading").assertTextEquals("はると")
         search("16")
@@ -124,21 +125,24 @@ class CharsAndReadingTest {
     }
 
     @Test
-    fun invalidReading() {
-        search("16", reading = "haru")
-        compose.onNodeWithText("読みは、ひらがな（またはカタカナ）30 文字までで入れてください").assertExists()
+    fun invalidReadingCannotSubmit() {
+        compose.onNodeWithTag("search.total").performTextInput("16")
+        compose.onNodeWithTag("search.reading").performScrollTo().performTextInput("haru")
+        compose.onNodeWithTag("search.formError").assertTextEquals("読みは、ひらがな（またはカタカナ）30 文字までで入れてください")
+        compose.onNodeWithTag("search.submit").assertIsNotEnabled()
     }
 
     @Test
     fun readingPrefix() {
         // reading_prefix_off / on: 心・春を固定、総画数 13、読み「こはる」 → オフは 0 件、オンは 1 件
-        compose.onNodeWithTag("search.kind.fixed").performClick()
-        compose.onNodeWithTag("search.fixed").performTextInput("心")
-        compose.onNodeWithTag("search.cell.2").performClick()
-        compose.onNodeWithTag("search.kind.fixed").performClick()
-        compose.onNodeWithTag("search.fixed").performTextInput("春")
-        compose.onNodeWithTag("search.total").performTextInput("13")
-        compose.onNodeWithTag("search.reading").performTextInput("こはる")
+        compose.onNodeWithTag("search.cell.1").performScrollTo().performClick()
+        compose.onNodeWithTag("search.kind.fixed").performScrollTo().performClick()
+        compose.onNodeWithTag("search.fixed").performScrollTo().performTextInput("心")
+        compose.onNodeWithTag("search.cell.2").performScrollTo().performClick()
+        compose.onNodeWithTag("search.kind.fixed").performScrollTo().performClick()
+        compose.onNodeWithTag("search.fixed").performScrollTo().performTextInput("春")
+        compose.onNodeWithTag("search.total").performScrollTo().performTextInput("13")
+        compose.onNodeWithTag("search.reading").performScrollTo().performTextInput("こはる")
         compose.onNodeWithTag("search.submit").performClick()
         compose.waitUntil(timeoutMillis = 10_000) { compose.onAllNodes(hasTestTag("result.empty")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("nav.back").performClick()

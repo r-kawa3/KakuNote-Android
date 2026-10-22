@@ -106,12 +106,42 @@ class SearchFormTest {
     }
 
     @Test
+    fun selectionToggles() {
+        val none = SearchForm()
+        assertEquals(null, none.selectedIndex)
+        assertEquals(null, none.selected)
+        val first = none.toggleSelection(0)
+        assertEquals(0, first.selectedIndex)
+        assertEquals(1, first.toggleSelection(1).selectedIndex)
+        assertEquals(null, first.toggleSelection(0).selectedIndex)
+    }
+
+    @Test
     fun lengthKeepsSelectionInside() {
         val form = SearchForm(length = 4, selectedIndex = 3).withLength(2)
         assertEquals(2, form.length)
-        assertEquals(1, form.selectedIndex)
+        // 選んでいたマスがなくなったら、選ぶのをやめる
+        assertEquals(null, form.selectedIndex)
+        assertEquals(1, SearchForm(length = 4, selectedIndex = 1).withLength(2).selectedIndex)
         assertEquals(6, form.withLength(9).length)
         assertEquals(1, form.withLength(0).length)
+    }
+
+    @Test
+    fun checkFindsProblemsBeforeSearching() {
+        val data = com.rkawa.kakunote.logic.TestData.kanji
+        val ok = SearchForm(totalText = "16")
+        assertEquals(true, ok.check(data, reading = "はると") is FormResult.Ready)
+        assertEquals(
+            FormResult.Invalid("読みは、ひらがな（またはカタカナ）30 文字までで入れてください"),
+            ok.check(data, reading = "haru"),
+        )
+        assertEquals(FormResult.Invalid("画数がわからない字があります: 「A」"), ok.check(data, sei = "田A"))
+        val fixed = { text: String -> SearchForm(totalText = "16", selectedIndex = 0).updateSelected { it.copy(kind = PositionKind.FIXED, fixedText = text) } }
+        assertEquals(FormResult.Invalid("1文字目に固定する字は 1 文字にしてください", 0), fixed("陽菜").check(data))
+        assertEquals(FormResult.Invalid("画数がわからない字があります: 「A」", 0), fixed("A").check(data))
+        assertEquals(true, fixed("陽").check(data) is FormResult.Ready)
+        assertEquals(FormResult.Invalid("総画数を入力してください"), SearchForm().check(data))
     }
 
     @Test

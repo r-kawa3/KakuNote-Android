@@ -2,7 +2,11 @@ package com.rkawa.kakunote.ui.search
 
 import com.rkawa.kakunote.logic.KakuKind
 import com.rkawa.kakunote.logic.NameSearch
+import com.rkawa.kakunote.logic.InputError
+import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.PositionCondition
+import com.rkawa.kakunote.logic.TextPreprocessor
+import com.rkawa.kakunote.logic.UnknownStrokeError
 import com.rkawa.kakunote.logic.Reading
 import com.rkawa.kakunote.logic.ScriptFilter
 import com.rkawa.kakunote.logic.SearchError
@@ -54,18 +58,23 @@ data class PositionInput(
 data class SearchForm(
     val length: Int = 2,
     val positions: List<PositionInput> = List(NameSearch.MAX_LENGTH) { PositionInput() },
-    /** 名前の形で選んでいるマス（0 から） */
-    val selectedIndex: Int = 0,
+    /** 名前の形で選んでいるマス（0 から）。null なら選んでいない（条件の欄を出さない） */
+    val selectedIndex: Int? = null,
     /** 一番上のカードの入力。姓なしなら総画数（地格）、姓ありなら総格 */
     val totalText: String = "",
     /** 姓ありのときの、ほかの格（人格・地格・外格）の入力 */
     val otherKakuTexts: Map<KakuKind, String> = emptyMap(),
 ) {
-    val selected: PositionInput get() = positions[selectedIndex]
+    /** 選んでいるマスの入力。選んでいなければ null */
+    val selected: PositionInput? get() = selectedIndex?.let { positions[it] }
+
+    /** マスを押したとき: 選んでいるマスなら閉じ、ほかのマスならそれを選ぶ */
+    fun toggleSelection(index: Int): SearchForm = copy(selectedIndex = if (selectedIndex == index) null else index)
 
     fun withLength(value: Int): SearchForm {
         val length = value.coerceIn(1, NameSearch.MAX_LENGTH)
-        return copy(length = length, selectedIndex = minOf(selectedIndex, length - 1))
+        // 選んでいたマスがなくなったら、選ぶのをやめる
+        return copy(length = length, selectedIndex = selectedIndex?.takeIf { it < length })
     }
 
     fun updateSelected(change: (PositionInput) -> PositionInput): SearchForm =
@@ -103,6 +112,46 @@ data class SearchForm(
                 reading = reading.trim().ifEmpty { null }, readingPrefix = readingPrefix,
             ),
         )
+    }
+
+    /**
+     * 「この条件で探す」を押せるかを、押す前に調べる。toQuery で入力の不足を見たうえで、
+     * 探さなくてもわかる誤り（読みにひらがな以外がある、固定の字が 1 文字でない・画数がわからない、
+     * 姓に画数がわからない字がある）も見る。候補が多すぎるかどうかは、探してみないとわからないので見ない。
+     */
+    fun check(
+        data: KanjiData,
+        sei: String? = null,
+        reading: String = "",
+        avoid: List<String> = emptyList(),
+        use: List<String> = emptyList(),
+        readingPrefix: Boolean = false,
+    ): FormResult {
+        val result = toQuery(sei, reading, avoid, use, readingPrefix)
+        if (result !is FormResult.Ready) return result
+        val query = result.query
+        try {
+            query.reading?.let { Reading.normalize(it) }
+            query.sei?.let { data.strokes(TextPreprocessor.characters(it)) }
+            query.positions.forEachIndexed { index, position ->
+                if (position is PositionCondition.Fixed) {
+                    val chars = TextPreprocessor.characters(position.char)
+                    if (chars.size != 1) return FormResult.Invalid(SearchMessages.message(SearchError.FixedNotSingleChar(index + 1)), index)
+                    try {
+                        data.strokes(chars)
+                    } catch (error: UnknownStrokeError) {
+                        return FormResult.Invalid(SearchMessages.message(SearchError.UnknownStrokes(error.chars)), index)
+                    }
+                }
+            }
+        } catch (error: SearchError) {
+            return FormResult.Invalid(SearchMessages.message(error))
+        } catch (error: UnknownStrokeError) {
+            return FormResult.Invalid(SearchMessages.message(SearchError.UnknownStrokes(error.chars)))
+        } catch (error: InputError) {
+            return FormResult.Invalid(SearchMessages.message(SearchError.InvalidInput(error)))
+        }
+        return result
     }
 
     companion object {

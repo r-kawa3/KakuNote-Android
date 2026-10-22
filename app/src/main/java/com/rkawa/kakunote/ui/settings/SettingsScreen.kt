@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.ui.semantics.Role
@@ -38,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
@@ -184,6 +187,15 @@ private fun SettingsContent(settings: AppSettings, data: KanjiData, onClose: () 
                     Text("›", style = Wa.gothic(20.sp, FontWeight.Bold), color = Wa.dashed)
                 }
             }
+            val context = LocalContext.current
+            val version = remember { appVersion(context) }
+            Text(
+                "KakuNote バージョン $version",
+                style = Wa.gothic(12.sp),
+                color = Wa.secondaryText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().testTag("settings.version"),
+            )
         }
     }
 }
@@ -229,8 +241,19 @@ private fun CharListSection(
                     }
                 },
             )
-            TextButton(onClick = ::add, enabled = input.isNotBlank(), modifier = Modifier.testTag("$tag.add")) {
-                Text("追加", style = Wa.gothic(15.sp, FontWeight.Bold), color = if (input.isNotBlank()) Wa.accent else Wa.placeholder)
+            // 押せることがわかるように、藍の地のボタンにする。何も入れていないときは薄くして押せない
+            val enabled = input.isNotBlank()
+            Box(
+                Modifier
+                    .padding(start = 8.dp)
+                    .defaultMinSize(minWidth = 64.dp, minHeight = 40.dp)
+                    .background(Wa.accent.copy(alpha = if (enabled) 1f else 0.35f), RoundedCornerShape(10.dp))
+                    .clickable(enabled = enabled, role = Role.Button, onClick = ::add)
+                    .padding(horizontal = 14.dp)
+                    .testTag("$tag.add"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("追加", style = Wa.gothic(15.sp, FontWeight.Bold), color = Wa.onAccent)
             }
         }
         message?.let {
@@ -280,12 +303,20 @@ fun Section(title: String?, footer: String? = null, content: @Composable ColumnS
 fun AboutScreen(data: KanjiData, onBack: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     val sources = remember(data) { Attribution.sources(data.meta) }
+    val context = LocalContext.current
+    val version = remember { appVersion(context) }
     Column(Modifier.fillMaxSize()) {
         WaTopBar("このアプリについて", onBack)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Wa.Metrics.screenPadding, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
+            Section("KakuNote") {
+                Row(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("アプリのバージョン", style = Wa.gothic(15.sp), color = Wa.ink, modifier = Modifier.weight(1f))
+                    Text(version, style = Wa.gothic(15.sp), color = Wa.secondaryText, modifier = Modifier.testTag("about.app.version"))
+                }
+            }
             for (source in sources) {
                 Section(source.name) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

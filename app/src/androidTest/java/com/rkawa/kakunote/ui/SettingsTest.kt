@@ -1,6 +1,8 @@
 package com.rkawa.kakunote.ui
 
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -71,8 +73,8 @@ class SettingsTest {
         registerSei("田中")
         closeSettings()
         compose.onNodeWithTag("search.total").performTextInput("24")
-        compose.onNodeWithTag("search.otherKaku").performClick()
-        compose.onNodeWithTag("search.kaku.jinkaku").performTextInput("15")
+        compose.onNodeWithTag("search.otherKaku").performScrollTo().performClick()
+        compose.onNodeWithTag("search.kaku.jinkaku").performScrollTo().performTextInput("15")
         compose.onNodeWithTag("search.submit").performClick()
         compose.waitUntil(timeoutMillis = 10_000) { compose.onAllNodes(hasTestTag("result.total")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("result.total").assertTextEquals("23,716件")
@@ -112,11 +114,23 @@ class SettingsTest {
         waitForHeading("設定")
         compose.onNodeWithTag("settings.about").performClick()
         waitForHeading("このアプリについて")
+        compose.onNodeWithTag("about.app.version").assertTextEquals("1.0.0")
         compose.onNodeWithTag("about.KANJIDIC2.version").assertTextEquals("2026-291")
         compose.onNodeWithText("CC BY-SA 4.0").assertExists()
         // 戻ると設定画面
         compose.onNodeWithTag("nav.back").performClick()
         waitForHeading("設定")
+    }
+
+    @Test
+    fun addButtonEnabledOnlyWithInput() {
+        compose.onAllNodesWithContentDescription("設定").onFirst().performClick()
+        waitForHeading("設定")
+        compose.onNodeWithTag("settings.use.add").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("settings.use.input").performScrollTo().performTextInput("陽")
+        compose.onNodeWithTag("settings.use.add").assertIsEnabled().performClick()
+        compose.onNodeWithTag("settings.use.remove.陽").assertExists()
+        compose.onNodeWithTag("settings.version").performScrollTo().assertTextEquals("KakuNote バージョン 1.0.0")
     }
 
     @Test
