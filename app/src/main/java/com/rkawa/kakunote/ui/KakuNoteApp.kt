@@ -1,5 +1,7 @@
 package com.rkawa.kakunote.ui
 
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -12,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +44,7 @@ enum class AppTab(val label: String, val icon: ImageVector) {
 fun KakuNoteApp(data: KanjiData) {
     var selectedTab by rememberSaveable { mutableStateOf(AppTab.SEARCH) }
     var showsSettings by rememberSaveable { mutableStateOf(false) }
+    val stateHolder = rememberSaveableStateHolder()
 
     if (showsSettings) {
         SettingsScreen(onClose = { showsSettings = false })
@@ -70,12 +74,16 @@ fun KakuNoteApp(data: KanjiData) {
             }
         },
     ) { padding ->
-        val modifier = Modifier.padding(padding)
+        // キーボードが出ているときも、画面の下の方までスクロールで届くようにする
+        val modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding()
         val openSettings = { showsSettings = true }
-        when (selectedTab) {
-            AppTab.SEARCH -> SearchScreen(data, openSettings, modifier)
-            AppTab.LOOKUP -> LookupScreen(data, openSettings, modifier)
-            AppTab.FAVORITES -> FavoritesScreen(data, openSettings, modifier)
+        // タブを切り替えても、各タブの入力やスクロールの位置を残す
+        stateHolder.SaveableStateProvider(selectedTab.name) {
+            when (selectedTab) {
+                AppTab.SEARCH -> SearchScreen(data, openSettings, modifier)
+                AppTab.LOOKUP -> LookupScreen(data, openSettings, modifier)
+                AppTab.FAVORITES -> FavoritesScreen(data, openSettings, modifier)
+            }
         }
     }
 }
