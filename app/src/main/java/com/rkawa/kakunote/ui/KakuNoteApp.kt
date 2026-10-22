@@ -122,7 +122,7 @@ fun KakuNoteApp(data: KanjiData) {
                     // 一覧から戻ったときも条件の入力が残るように、入力の画面の状態は別に保存する
                     null -> searchHolder.SaveableStateProvider("form") {
                         SearchScreen(
-                            registeredSei = settings.registeredSei,
+                            settings = settings.values,
                             data = data,
                             onSearch = { searchStack = listOf(SearchRoute.Results(ResultListState(it))) },
                             onOpenSettings = openSettings,

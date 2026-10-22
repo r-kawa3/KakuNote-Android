@@ -4,6 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -43,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rkawa.kakunote.data.Attribution
+import com.rkawa.kakunote.data.CharList
 import com.rkawa.kakunote.data.SeiCheck
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.ui.components.WaTopBar
@@ -50,7 +58,7 @@ import com.rkawa.kakunote.ui.components.waCard
 import com.rkawa.kakunote.ui.theme.Wa
 
 /**
- * 設定画面: 姓の登録と「このアプリについて」（避けたい字・使いたい字・読みの頭の部分はチケット 10 で足す）。
+ * 設定画面: 姓の登録、使いたい字、避けたい字、読みの頭の部分、「このアプリについて」。
  * 「閉じる」と端末の戻る操作で閉じる。「このアプリについて」は設定画面の中で進む。
  */
 @Composable
@@ -124,6 +132,42 @@ private fun SettingsContent(settings: AppSettings, data: KanjiData, onClose: () 
                     }
                 }
             }
+            CharListSection(
+                settings, data, CharList.USE, "使いたい字", "例：陽", "settings.use",
+                footer = "どれか 1 字以上が名前のどこかに入っている候補だけを出します。名前に使える字だけを登録できます。避けたい字にも入っている字は、使いたい字を優先します。",
+            )
+            CharListSection(
+                settings, data, CharList.AVOID, "避けたい字", "例：乙", "settings.avoid",
+                footer = "自由・画数指定の位置の候補から外します。自分で固定した字は外しません。漢字・ひらがな・カタカナを、何文字でもまとめて入れられます。",
+            )
+            Section(
+                "読み",
+                footer = "「探す」で読みを入れたとき、字の読みの先頭の部分も認めます（例：心「こころ」→「こ」で、心春を「こはる」）。小さい字（ゃ・ゅ・ょ など）の手前では区切りません。候補が大きく増えます。",
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 52.dp)
+                        .toggleable(
+                            value = settings.values.readingPrefix,
+                            role = Role.Switch,
+                            onValueChange = settings::setReadingPrefix,
+                        )
+                        .padding(horizontal = 16.dp)
+                        .testTag("settings.readingPrefix"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("読みの頭の部分も使う", style = Wa.gothic(16.sp), color = Wa.ink, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.values.readingPrefix,
+                        onCheckedChange = null,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = Wa.accent, checkedThumbColor = Wa.onAccent,
+                            uncheckedTrackColor = Wa.surfaceMuted, uncheckedThumbColor = Wa.secondaryText, uncheckedBorderColor = Wa.border,
+                        ),
+                    )
+                }
+            }
             settings.errorMessage?.let { Text(it, style = Wa.gothic(13.sp), color = Wa.seal) }
             Section(null) {
                 Row(
@@ -137,6 +181,83 @@ private fun SettingsContent(settings: AppSettings, data: KanjiData, onClose: () 
                 ) {
                     Text("このアプリについて", style = Wa.gothic(16.sp), color = Wa.ink, modifier = Modifier.weight(1f))
                     Text("›", style = Wa.gothic(20.sp, FontWeight.Bold), color = Wa.dashed)
+                }
+            }
+        }
+    }
+}
+
+/** 使いたい字・避けたい字の欄: 入力して「追加」、登録した字はチップで並び、押すと外れる。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CharListSection(
+    settings: AppSettings,
+    data: KanjiData,
+    list: CharList,
+    title: String,
+    placeholder: String,
+    tag: String,
+    footer: String,
+) {
+    var input by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+    val focusManager = LocalFocusManager.current
+    fun add() {
+        if (input.isBlank()) return
+        message = settings.addChars(input, list, data)
+        if (message == null) input = ""
+    }
+    Section(title, footer = footer) {
+        Row(
+            Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp).padding(start = 16.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = input,
+                onValueChange = { input = it },
+                singleLine = true,
+                textStyle = Wa.mincho(20.sp).copy(color = Wa.ink),
+                cursorBrush = SolidColor(Wa.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { add(); focusManager.clearFocus() }),
+                modifier = Modifier.weight(1f).testTag("$tag.input").semantics { contentDescription = title },
+                decorationBox = { inner ->
+                    androidx.compose.foundation.layout.Box {
+                        if (input.isEmpty()) Text(placeholder, style = Wa.mincho(20.sp), color = Wa.placeholder)
+                        inner()
+                    }
+                },
+            )
+            TextButton(onClick = ::add, enabled = input.isNotBlank(), modifier = Modifier.testTag("$tag.add")) {
+                Text("追加", style = Wa.gothic(15.sp, FontWeight.Bold), color = if (input.isNotBlank()) Wa.accent else Wa.placeholder)
+            }
+        }
+        message?.let {
+            Text(it, style = Wa.gothic(13.sp), color = Wa.seal, modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp).testTag("$tag.error"))
+        }
+        val chars = settings.values.chars(list)
+        if (chars.isNotEmpty()) {
+            HorizontalDivider(color = Wa.divider)
+            FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (char in chars) {
+                    Row(
+                        Modifier
+                            .defaultMinSize(minHeight = 36.dp)
+                            .background(Wa.surfaceMuted, CircleShape)
+                            .clickable(role = Role.Button) { settings.removeChar(char, list) }
+                            .padding(horizontal = 12.dp)
+                            .testTag("$tag.remove.$char")
+                            .semantics(mergeDescendants = true) { contentDescription = "「$char」を外す" },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(char, style = Wa.mincho(18.sp, bold = true), color = Wa.ink)
+                        Text("×", style = Wa.gothic(13.sp, FontWeight.Bold), color = Wa.secondaryText)
+                    }
                 }
             }
         }

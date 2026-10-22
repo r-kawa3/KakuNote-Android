@@ -3,6 +3,7 @@ package com.rkawa.kakunote.ui.search
 import com.rkawa.kakunote.logic.KakuKind
 import com.rkawa.kakunote.logic.NameSearch
 import com.rkawa.kakunote.logic.PositionCondition
+import com.rkawa.kakunote.logic.Reading
 import com.rkawa.kakunote.logic.ScriptFilter
 import com.rkawa.kakunote.logic.SearchError
 import com.rkawa.kakunote.logic.SearchQuery
@@ -70,8 +71,17 @@ data class SearchForm(
     fun updateSelected(change: (PositionInput) -> PositionInput): SearchForm =
         copy(positions = positions.mapIndexed { i, p -> if (i == selectedIndex) change(p) else p })
 
-    /** 検索の条件にする。足りない入力があれば、その文言（と、選び直すマス）を返す。 */
-    fun toQuery(sei: String? = null): FormResult {
+    /**
+     * 検索の条件にする。足りない入力があれば、その文言（と、選び直すマス）を返す。
+     * avoid・use・readingPrefix は設定から、reading は「探す」の読みの欄から渡す。
+     */
+    fun toQuery(
+        sei: String? = null,
+        reading: String = "",
+        avoid: List<String> = emptyList(),
+        use: List<String> = emptyList(),
+        readingPrefix: Boolean = false,
+    ): FormResult {
         val totals = parseNumbers(totalText)
         val conditions = mutableMapOf<KakuKind, Set<Int>>()
         if (totals.isNotEmpty()) conditions[if (sei != null) KakuKind.SOUKAKU else KakuKind.CHIKAKU] = totals.toSet()
@@ -87,12 +97,21 @@ data class SearchForm(
         val positionConditions = (0 until length).map { index ->
             positions[index].condition ?: return FormResult.Invalid("${index + 1}文字目の条件を入力してください", index)
         }
-        return FormResult.Ready(SearchQuery(sei = sei, positions = positionConditions, conditions = conditions))
+        return FormResult.Ready(
+            SearchQuery(
+                sei = sei, positions = positionConditions, conditions = conditions, avoid = avoid, use = use,
+                reading = reading.trim().ifEmpty { null }, readingPrefix = readingPrefix,
+            ),
+        )
     }
 
     companion object {
         /** 姓ありのとき、折りたたみの中で条件にできる格（天格は姓だけで決まるので表示だけ） */
         val OTHER_KAKU_KINDS = listOf(KakuKind.JINKAKU, KakuKind.CHIKAKU, KakuKind.GAIKAKU)
+
+        /** カタカナをひらがなに直す（「ー」などはそのまま）。読みの欄に、カタカナで入れても自動で直す */
+        fun hiragana(text: String): String =
+            buildString { text.codePoints().forEach { appendCodePoint(Reading.hiragana(it)) } }
 
         /** 「24, 31」「24、31」「24 31」のような入力から、正の整数を取り出す。 */
         fun parseNumbers(text: String): List<Int> =

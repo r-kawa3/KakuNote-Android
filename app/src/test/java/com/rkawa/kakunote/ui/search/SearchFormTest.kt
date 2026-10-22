@@ -60,6 +60,26 @@ class SearchFormTest {
     }
 
     @Test
+    fun readingAndSettingsGoIntoQuery() {
+        val result = SearchForm(totalText = "16").toQuery(
+            reading = " はると ", avoid = listOf("乙"), use = listOf("陽"), readingPrefix = true,
+        ) as FormResult.Ready
+        assertEquals(" はると ".trim(), result.query.reading)
+        assertEquals(listOf("乙"), result.query.avoid)
+        assertEquals(listOf("陽"), result.query.use)
+        assertEquals(true, result.query.readingPrefix)
+        // 読みが空なら絞り込まない
+        assertEquals(null, (SearchForm(totalText = "16").toQuery(reading = "  ") as FormResult.Ready).query.reading)
+    }
+
+    @Test
+    fun katakanaBecomesHiragana() {
+        assertEquals("はると", SearchForm.hiragana("ハルト"))
+        assertEquals("るー", SearchForm.hiragana("ルー"))
+        assertEquals("陽ゔ", SearchForm.hiragana("陽ヴ"))
+    }
+
+    @Test
     fun missingTotal() {
         assertEquals(FormResult.Invalid("総画数を入力してください"), SearchForm().toQuery())
         assertEquals(FormResult.Invalid("総格か、ほかの格の画数を入力してください"), SearchForm().toQuery(sei = "田中"))

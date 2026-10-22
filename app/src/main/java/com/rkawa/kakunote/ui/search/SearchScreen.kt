@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rkawa.kakunote.data.SeiCheck
+import com.rkawa.kakunote.data.SettingsValues
 import com.rkawa.kakunote.logic.KakuKind
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.NameSearch
@@ -74,11 +75,11 @@ import com.rkawa.kakunote.ui.theme.Wa
  * 「探す」画面: 総画数（姓を使うなら総格）を一番上に大きく置き、名の文字数・名前の形（位置ごとの条件）を
  * 指定して、名前の候補を探す。「この条件で探す」ボタンは画面の下に固定し、押すと onSearch で候補の一覧に進む。
  * 姓は設定画面で登録したもの（registeredSei）を使い、「姓を使う」をオフにすると名前だけで探す。
- * 読みは、チケット 10 で足す。
+ * 避けたい字・使いたい字・読みの頭の部分は設定（settings）のものを使い、読みはこの画面の読みの欄で入れる。
  */
 @Composable
 fun SearchScreen(
-    registeredSei: String?,
+    settings: SettingsValues,
     data: KanjiData,
     onSearch: (SearchQuery) -> Unit,
     onOpenSettings: () -> Unit,
@@ -89,13 +90,17 @@ fun SearchScreen(
     /** 登録した姓を使うか（一番上のカードの「姓を使う」） */
     var usesSei by rememberSaveable { mutableStateOf(true) }
     var showsOtherKaku by rememberSaveable { mutableStateOf(false) }
+    /** 名前全体の読み（ひらがな）。空なら読みで絞り込まない */
+    var reading by rememberSaveable { mutableStateOf("") }
+    val registeredSei = settings.registeredSei
     val focusManager = LocalFocusManager.current
     /** 検索に使う姓。登録がない・「姓を使う」がオフなら null */
     val sei = if (usesSei) registeredSei else null
 
     fun submit() {
         focusManager.clearFocus()
-        when (val result = form.toQuery(sei)) {
+        reading = SearchForm.hiragana(reading)
+        when (val result = form.toQuery(sei, reading, settings.avoidChars, settings.useChars, settings.readingPrefix)) {
             is FormResult.Invalid -> {
                 result.selectIndex?.let { form = form.copy(selectedIndex = it) }
                 formError = result.message
@@ -120,6 +125,16 @@ fun SearchScreen(
             ) {
                 if (registeredSei != null) SeiRow(registeredSei, usesSei, data) { usesSei = it }
             }
+            // カタカナは、入力を終えたとき（完了・この条件で探す）にひらがなに直す。打っている途中で直すと、
+            // 日本語入力の変換を邪魔してしまうため
+            ReadingField(
+                reading,
+                onChange = { reading = it },
+                onDone = {
+                    reading = SearchForm.hiragana(reading)
+                    focusManager.clearFocus()
+                },
+            )
             if (sei != null) {
                 OtherKakuSection(
                     expanded = showsOtherKaku,
@@ -196,6 +211,34 @@ private fun TotalCard(
             Text("画", style = Wa.mincho(24.sp), color = Wa.onAccentFaint, modifier = Modifier.padding(bottom = 14.dp))
         }
         footer()
+    }
+}
+
+/** 読みの欄。ひらがなで入れる（カタカナで入れても、入力を終えたときにひらがなに直す）。空なら読みで絞り込まない。 */
+@Composable
+private fun ReadingField(reading: String, onChange: (String) -> Unit, onDone: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp).waCard().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("読み", style = Wa.gothic(15.sp, FontWeight.Bold).copy(letterSpacing = 1.sp), color = Wa.ink)
+        BasicTextField(
+            value = reading,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = Wa.mincho(18.sp).copy(color = Wa.ink, textAlign = TextAlign.End),
+            cursorBrush = SolidColor(Wa.accent),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onDone() }),
+            modifier = Modifier.weight(1f).testTag("search.reading").semantics { contentDescription = "読み" },
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterEnd) {
+                    if (reading.isEmpty()) Text("省略できます（例：はると）", style = Wa.mincho(18.sp), color = Wa.placeholder)
+                    inner()
+                }
+            },
+        )
     }
 }
 
