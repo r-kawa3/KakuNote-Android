@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,8 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 起動画面（生成り色に「画」の印）。漢字のデータを読み込むあいだは出しておく
+        installSplashScreen().setKeepOnScreenCondition { BundledKanji.state.value is BundledKanji.State.Loading }
         // 画面の端まで背景を広げ、状態バー・ナビゲーションバーは明るい背景用（暗い文字・アイコン）にする。
         // 端末がダークモードでも、いつも明るい和の色で見せる
         enableEdgeToEdge(

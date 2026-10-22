@@ -3,12 +3,15 @@
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.KakuNote">
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:theme="@style/Theme.KakuNote.Starting"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

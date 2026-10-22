@@ -5,6 +5,7 @@ composeBom = "2026.02.01"
 coreKtx = "1.16.0"
 lifecycleRuntimeKtx = "2.9.4"
 activityCompose = "1.8.2"
+coreSplashscreen = "1.0.1"
 junit = "4.13.2"
 json = "20250517"
 sqliteJdbc = "3.50.3.0"
@@ -15,6 +16,7 @@ espressoCore = "3.7.0"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
