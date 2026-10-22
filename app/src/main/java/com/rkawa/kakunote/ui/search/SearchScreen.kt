@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,60 +57,29 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rkawa.kakunote.logic.KakuSchool
-import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.NameSearch
 import com.rkawa.kakunote.logic.ScriptFilter
-import com.rkawa.kakunote.logic.SearchError
 import com.rkawa.kakunote.logic.SearchQuery
-import com.rkawa.kakunote.logic.ShinjitaiSchool
 import com.rkawa.kakunote.ui.components.WaIcons
 import com.rkawa.kakunote.ui.components.WaSectionLabel
 import com.rkawa.kakunote.ui.components.WaTabScreen
 import com.rkawa.kakunote.ui.components.waCard
 import com.rkawa.kakunote.ui.theme.Wa
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.text.NumberFormat
-
-/** 「この条件で探す」を押したあとの状態（候補の一覧はチケット 07 で作る。今は件数だけ出す） */
-private sealed class SearchStatus {
-    data object Idle : SearchStatus()
-    data object Running : SearchStatus()
-    data class Found(val total: Long) : SearchStatus()
-    data class Failed(val message: String) : SearchStatus()
-}
 
 /**
  * 「探す」画面: 総画数（姓を使うなら総格）を一番上に大きく置き、名の文字数・名前の形（位置ごとの条件）を
- * 指定して、名前の候補を探す。「この条件で探す」ボタンは画面の下に固定する。
+ * 指定して、名前の候補を探す。「この条件で探す」ボタンは画面の下に固定し、押すと onSearch で候補の一覧に進む。
  * 姓・ほかの格・読みは、設定を作るチケット（09・10）で足す。
  */
 @Composable
 fun SearchScreen(
-    data: KanjiData,
+    onSearch: (SearchQuery) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    school: KakuSchool = ShinjitaiSchool,
 ) {
     var form by rememberSaveable(stateSaver = SearchFormSaver) { mutableStateOf(SearchForm()) }
     var formError by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingQuery by remember { mutableStateOf<SearchQuery?>(null) }
-    var status by remember { mutableStateOf<SearchStatus>(SearchStatus.Idle) }
     val focusManager = LocalFocusManager.current
-
-    // 検索はメインスレッドでしない（6 文字で条件が広いと時間がかかることがある）
-    LaunchedEffect(pendingQuery) {
-        val query = pendingQuery ?: return@LaunchedEffect
-        status = SearchStatus.Running
-        status = withContext(Dispatchers.Default) {
-            try {
-                SearchStatus.Found(NameSearch(query, data, school).total)
-            } catch (error: SearchError) {
-                SearchStatus.Failed(SearchMessages.message(error))
-            }
-        }
-    }
 
     fun submit() {
         focusManager.clearFocus()
@@ -119,12 +87,10 @@ fun SearchScreen(
             is FormResult.Invalid -> {
                 result.selectIndex?.let { form = form.copy(selectedIndex = it) }
                 formError = result.message
-                status = SearchStatus.Idle
-                pendingQuery = null
             }
             is FormResult.Ready -> {
                 formError = null
-                pendingQuery = result.query
+                onSearch(result.query)
             }
         }
     }
@@ -150,7 +116,6 @@ fun SearchScreen(
         }
         SubmitBar(
             formError = formError,
-            status = status,
             onSubmit = ::submit,
         )
     }
@@ -501,7 +466,6 @@ private fun DetailRow(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun SubmitBar(
     formError: String?,
-    status: SearchStatus,
     onSubmit: () -> Unit,
 ) {
     Column(
@@ -514,22 +478,6 @@ private fun SubmitBar(
     ) {
         if (formError != null) {
             Text(formError, style = Wa.gothic(13.sp), color = Wa.seal, modifier = Modifier.fillMaxWidth().testTag("search.formError"))
-        }
-        when (status) {
-            SearchStatus.Idle -> Unit
-            SearchStatus.Running -> Text("探しています…", style = Wa.gothic(13.sp), color = Wa.secondaryText)
-            is SearchStatus.Found -> Text(
-                "候補は ${NumberFormat.getIntegerInstance().format(status.total)}件 です（一覧は次のチケットで作ります）",
-                style = Wa.gothic(13.sp, FontWeight.Bold),
-                color = Wa.accent,
-                modifier = Modifier.fillMaxWidth().testTag("search.resultCount"),
-            )
-            is SearchStatus.Failed -> Text(
-                status.message,
-                style = Wa.gothic(13.sp),
-                color = Wa.seal,
-                modifier = Modifier.fillMaxWidth().testTag("search.resultError"),
-            )
         }
         Row(
             Modifier

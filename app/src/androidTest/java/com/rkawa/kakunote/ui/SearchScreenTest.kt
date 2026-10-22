@@ -34,12 +34,13 @@ class SearchScreenTest {
 
     private fun cellCount() = (1..6).count { compose.onAllNodes(hasTestTag("search.cell.$it")).fetchSemanticsNodes().isNotEmpty() }
 
+    /** 「この条件で探す」を押して、候補の一覧の件数（例: 「4件」）を返す。 */
     private fun submitAndWaitForCount(): String {
         compose.onNodeWithTag("search.submit").performClick()
         compose.waitUntil(timeoutMillis = 10_000) {
-            compose.onAllNodes(hasTestTag("search.resultCount")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasTestTag("result.total")).fetchSemanticsNodes().isNotEmpty()
         }
-        return compose.onNodeWithTag("search.resultCount").fetchSemanticsNode().config
+        return compose.onNodeWithTag("result.total").fetchSemanticsNode().config
             .first { it.key.name == "Text" }.value.toString()
     }
 
@@ -65,7 +66,7 @@ class SearchScreenTest {
     @Test
     fun twoKanjiTotalTwoHasFourCandidates() {
         compose.onNodeWithTag("search.total").performTextInput("2")
-        assertTrue(submitAndWaitForCount().contains("候補は 4件"))
+        assertTrue(submitAndWaitForCount().contains("[4件]"))
     }
 
     @Test
@@ -95,7 +96,7 @@ class SearchScreenTest {
         compose.onNodeWithTag("search.cell.2").performClick()
         compose.onNodeWithTag("search.script").performClick()
         compose.onNodeWithTag("search.script.hiragana").performClick()
-        assertTrue(submitAndWaitForCount().contains("候補は 31件"))
+        assertTrue(submitAndWaitForCount().contains("[31件]"))
     }
 
     @Test
@@ -107,7 +108,7 @@ class SearchScreenTest {
         compose.onNodeWithTag("search.strokes").performTextInput("1")
         compose.onNodeWithTag("search.cell.2").assertTextContains("1画", substring = true)
         // 1 文字目が 1 画（2 字）か 2 画の漢字で、2 文字目が 2 字
-        assertTrue(submitAndWaitForCount().contains("候補は "))
+        assertTrue(submitAndWaitForCount().endsWith("件]"))
     }
 
     @Test
@@ -116,7 +117,7 @@ class SearchScreenTest {
         repeat(4) { compose.onNodeWithTag("search.length.plus").performClick() }
         compose.onNodeWithTag("search.submit").performClick()
         compose.waitUntil(timeoutMillis = 10_000) {
-            compose.onAllNodes(hasTestTag("search.resultCount") or hasTestTag("search.resultError")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasTestTag("result.total") or hasTestTag("result.error")).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

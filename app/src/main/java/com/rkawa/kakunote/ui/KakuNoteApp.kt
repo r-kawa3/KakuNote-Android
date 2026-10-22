@@ -1,5 +1,6 @@
 package com.rkawa.kakunote.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -21,7 +24,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rkawa.kakunote.logic.KakuSchool
 import com.rkawa.kakunote.logic.KanjiData
+import com.rkawa.kakunote.logic.ShinjitaiSchool
+import com.rkawa.kakunote.ui.result.CandidateDetailScreen
+import com.rkawa.kakunote.ui.result.ResultListState
+import com.rkawa.kakunote.ui.result.ResultScreen
 import com.rkawa.kakunote.ui.components.WaIcons
 import com.rkawa.kakunote.ui.favorites.FavoritesScreen
 import com.rkawa.kakunote.ui.lookup.LookupScreen
@@ -36,15 +44,27 @@ enum class AppTab(val label: String, val icon: ImageVector) {
     FAVORITES("お気に入り", WaIcons.Heart),
 }
 
+/** 「探す」タブの中で進んだ先の画面。 */
+sealed class SearchRoute {
+    /** 候補の一覧。一覧の状態（読み込んだ行）をここに持つので、詳細から戻っても残る */
+    class Results(val state: ResultListState) : SearchRoute()
+
+    class Detail(val sei: String?, val mei: String) : SearchRoute()
+}
+
 /**
  * アプリの骨組み: 下のタブ（探す・調べる・お気に入り）と、どの画面からも開ける設定画面。
- * タブは状態だけで切り替える（画面を進める・戻る仕組みは、候補の一覧などを作るチケットで足す）。
+ * タブは状態だけで切り替える。「探す」タブの中で進んだ先（候補の一覧・詳細）は、ここで履歴として持つ
+ * （タブを切り替えても残る）。戻るのは、上の「‹ 戻る」と端末の戻る操作。
  */
 @Composable
 fun KakuNoteApp(data: KanjiData) {
     var selectedTab by rememberSaveable { mutableStateOf(AppTab.SEARCH) }
     var showsSettings by rememberSaveable { mutableStateOf(false) }
     val stateHolder = rememberSaveableStateHolder()
+    var searchStack by remember { mutableStateOf(listOf<SearchRoute>()) }
+    val searchHolder = rememberSaveableStateHolder()
+    val school: KakuSchool = ShinjitaiSchool
 
     if (showsSettings) {
         SettingsScreen(onClose = { showsSettings = false })
@@ -59,7 +79,11 @@ fun KakuNoteApp(data: KanjiData) {
                 for (tab in AppTab.entries) {
                     NavigationBarItem(
                         selected = tab == selectedTab,
-                        onClick = { selectedTab = tab },
+                        onClick = {
+                            // 選んでいる「探す」タブをもう一度押すと、条件の入力に戻る
+                            if (tab == selectedTab && tab == AppTab.SEARCH) searchStack = emptyList()
+                            selectedTab = tab
+                        },
                         icon = { Icon(tab.icon, contentDescription = null, modifier = Modifier.size(24.dp)) },
                         label = { Text(tab.label, style = Wa.gothic(12.sp)) },
                         colors = NavigationBarItemDefaults.colors(
@@ -78,9 +102,28 @@ fun KakuNoteApp(data: KanjiData) {
         val modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding()
         val openSettings = { showsSettings = true }
         // タブを切り替えても、各タブの入力やスクロールの位置を残す
+        val popSearch = { searchStack = searchStack.dropLast(1) }
+        BackHandler(enabled = selectedTab == AppTab.SEARCH && searchStack.isNotEmpty(), onBack = popSearch)
         stateHolder.SaveableStateProvider(selectedTab.name) {
             when (selectedTab) {
-                AppTab.SEARCH -> SearchScreen(data, openSettings, modifier)
+                AppTab.SEARCH -> when (val route = searchStack.lastOrNull()) {
+                    // 一覧から戻ったときも条件の入力が残るように、入力の画面の状態は別に保存する
+                    null -> searchHolder.SaveableStateProvider("form") {
+                        SearchScreen(
+                            onSearch = { searchStack = listOf(SearchRoute.Results(ResultListState(it))) },
+                            onOpenSettings = openSettings,
+                            modifier = modifier,
+                        )
+                    }
+                    is SearchRoute.Results -> key(route) {
+                        ResultScreen(
+                            state = route.state, data = data, school = school, onBack = popSearch,
+                            onSelect = { row -> searchStack = searchStack + SearchRoute.Detail(route.state.query.sei, row.name) },
+                            modifier = modifier,
+                        )
+                    }
+                    is SearchRoute.Detail -> CandidateDetailScreen(route.sei, route.mei, data, school, popSearch, modifier)
+                }
                 AppTab.LOOKUP -> LookupScreen(data, openSettings, modifier)
                 AppTab.FAVORITES -> FavoritesScreen(data, openSettings, modifier)
             }
