@@ -20,11 +20,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rkawa.kakunote.data.Favorite
 import com.rkawa.kakunote.logic.KakuSchool
+import com.rkawa.kakunote.ui.favorites.FavoritesModel
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.logic.ShinjitaiSchool
 import com.rkawa.kakunote.ui.result.CandidateDetailScreen
@@ -65,6 +68,10 @@ fun KakuNoteApp(data: KanjiData) {
     var searchStack by remember { mutableStateOf(listOf<SearchRoute>()) }
     val searchHolder = rememberSaveableStateHolder()
     val school: KakuSchool = ShinjitaiSchool
+    // お気に入りは「探す」の一覧と「お気に入り」タブで共有する
+    val context = LocalContext.current
+    val favorites = remember { FavoritesModel.open(context) }
+    var favoriteDetail by remember { mutableStateOf<Favorite?>(null) }
 
     if (showsSettings) {
         SettingsScreen(onClose = { showsSettings = false })
@@ -82,6 +89,7 @@ fun KakuNoteApp(data: KanjiData) {
                         onClick = {
                             // 選んでいる「探す」タブをもう一度押すと、条件の入力に戻る
                             if (tab == selectedTab && tab == AppTab.SEARCH) searchStack = emptyList()
+                            if (tab == selectedTab && tab == AppTab.FAVORITES) favoriteDetail = null
                             selectedTab = tab
                         },
                         icon = { Icon(tab.icon, contentDescription = null, modifier = Modifier.size(24.dp)) },
@@ -104,6 +112,7 @@ fun KakuNoteApp(data: KanjiData) {
         // タブを切り替えても、各タブの入力やスクロールの位置を残す
         val popSearch = { searchStack = searchStack.dropLast(1) }
         BackHandler(enabled = selectedTab == AppTab.SEARCH && searchStack.isNotEmpty(), onBack = popSearch)
+        BackHandler(enabled = selectedTab == AppTab.FAVORITES && favoriteDetail != null) { favoriteDetail = null }
         stateHolder.SaveableStateProvider(selectedTab.name) {
             when (selectedTab) {
                 AppTab.SEARCH -> when (val route = searchStack.lastOrNull()) {
@@ -117,7 +126,7 @@ fun KakuNoteApp(data: KanjiData) {
                     }
                     is SearchRoute.Results -> key(route) {
                         ResultScreen(
-                            state = route.state, data = data, school = school, onBack = popSearch,
+                            state = route.state, data = data, school = school, favorites = favorites, onBack = popSearch,
                             onSelect = { row -> searchStack = searchStack + SearchRoute.Detail(route.state.query.sei, row.name) },
                             modifier = modifier,
                         )
@@ -125,7 +134,15 @@ fun KakuNoteApp(data: KanjiData) {
                     is SearchRoute.Detail -> CandidateDetailScreen(route.sei, route.mei, data, school, popSearch, modifier)
                 }
                 AppTab.LOOKUP -> LookupScreen(data, openSettings, modifier)
-                AppTab.FAVORITES -> FavoritesScreen(data, openSettings, modifier)
+                AppTab.FAVORITES -> when (val detail = favoriteDetail) {
+                    null -> FavoritesScreen(
+                        favorites = favorites, data = data, school = school, onOpenSettings = openSettings,
+                        onSelect = { favoriteDetail = it },
+                        onGoSearch = { selectedTab = AppTab.SEARCH },
+                        modifier = modifier,
+                    )
+                    else -> CandidateDetailScreen(detail.sei, detail.mei, data, school, { favoriteDetail = null }, modifier)
+                }
             }
         }
     }

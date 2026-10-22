@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import com.rkawa.kakunote.logic.KakuSchool
 import com.rkawa.kakunote.logic.KanjiData
 import com.rkawa.kakunote.ui.components.WaTopBar
+import com.rkawa.kakunote.ui.favorites.FavoriteButton
+import com.rkawa.kakunote.ui.favorites.FavoritesModel
 import com.rkawa.kakunote.ui.components.waCard
 import com.rkawa.kakunote.ui.theme.Wa
 import java.text.NumberFormat
@@ -47,6 +49,7 @@ fun ResultScreen(
     state: ResultListState,
     data: KanjiData,
     school: KakuSchool,
+    favorites: FavoritesModel,
     onBack: () -> Unit,
     onSelect: (ResultRow) -> Unit,
     modifier: Modifier = Modifier,
@@ -64,7 +67,7 @@ fun ResultScreen(
                 if (phase.total == 0L) {
                     Unavailable("該当する名前がありません", "条件を変えてみてください。", "result.empty")
                 } else {
-                    ResultList(state, phase.total, onSelect)
+                    ResultList(state, phase.total, favorites, onSelect)
                 }
         }
     }
@@ -72,7 +75,7 @@ fun ResultScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ResultList(state: ResultListState, total: Long, onSelect: (ResultRow) -> Unit) {
+private fun ResultList(state: ResultListState, total: Long, favorites: FavoritesModel, onSelect: (ResultRow) -> Unit) {
     val listState = state.listState
     // 最後の行が見えてきたら、続きを作る
     LaunchedEffect(listState, state) {
@@ -102,7 +105,11 @@ private fun ResultList(state: ResultListState, total: Long, onSelect: (ResultRow
                 modifier = Modifier.testTag("result.total"),
             )
         }
-        itemsIndexed(state.rows) { _, row -> CandidateRow(row) { onSelect(row) } }
+        itemsIndexed(state.rows) { _, row ->
+            CandidateRow(row, onClick = { onSelect(row) }) {
+                FavoriteButton(favorites, state.query.sei, row.name, state.query)
+            }
+        }
     }
 }
 
@@ -125,28 +132,32 @@ private fun ConditionChip(chip: SearchSummary.Chip) {
     }
 }
 
-/** 候補の 1 行: 明朝の大きな名前と、画数の内訳（ハートはお気に入りのチケットで足す）。 */
+/** 候補の 1 行: 明朝の大きな名前、画数の内訳、ハート。名前の部分を押すと詳細に進む。 */
 @Composable
-private fun CandidateRow(row: ResultRow, onClick: () -> Unit) {
+private fun CandidateRow(row: ResultRow, onClick: () -> Unit, heart: @Composable () -> Unit) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 68.dp)
-            .waCard()
-            .clickable(onClick = onClick)
-            .padding(start = 18.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
-            .testTag("result.row")
-            .semantics(mergeDescendants = true) {
-                contentDescription = listOfNotNull(row.name, row.breakdown, row.kakuNote).joinToString("、")
-            },
+        Modifier.fillMaxWidth().defaultMinSize(minHeight = 68.dp).waCard(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(row.name, style = Wa.mincho(32.sp, bold = true), color = Wa.ink)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(row.breakdown, style = Wa.gothic(12.sp), color = Wa.secondaryText)
-            row.kakuNote?.let { Text(it, style = Wa.gothic(12.sp, FontWeight.Bold), color = Wa.accent) }
+        Row(
+            Modifier
+                .weight(1f)
+                .clickable(onClick = onClick)
+                .padding(start = 18.dp, end = 8.dp, top = 10.dp, bottom = 10.dp)
+                .testTag("result.row")
+                .semantics(mergeDescendants = true) {
+                    contentDescription = listOfNotNull(row.name, row.breakdown, row.kakuNote).joinToString("、")
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(row.name, style = Wa.mincho(32.sp, bold = true), color = Wa.ink)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(row.breakdown, style = Wa.gothic(12.sp), color = Wa.secondaryText)
+                row.kakuNote?.let { Text(it, style = Wa.gothic(12.sp, FontWeight.Bold), color = Wa.accent) }
+            }
         }
+        Box(Modifier.padding(end = 8.dp)) { heart() }
     }
 }
 
