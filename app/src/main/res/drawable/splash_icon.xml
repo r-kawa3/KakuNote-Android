@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  起動画面の絵: 藍の「画」と朱の印「名」。~/Desktop/KakuNote仕様書/スプラッシュ/KakuNote-splash.svg の上の部分
+  起動画面の絵: 藍の「画」と朱の印「名」。~/Desktop/自作アプリ/KakuNote仕様書/スプラッシュ/KakuNote-splash.svg の上の部分
   （x 33〜190、y 17〜172）を、起動画面のアイコンの枠（288dp、見えるのは真ん中の直径 192dp の丸）に収める。
   Android の起動画面はアイコン 1 つだけなので、「KakuNote」と説明の文字は出さない。
 -->

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  アイコンの前景: 生成り色の「画」と、朱の印「名」。~/Desktop/KakuNote仕様書/アイコン/KakuNote-icon.svg（100 × 100）を、
+  アイコンの前景: 生成り色の「画」と、朱の印「名」。~/Desktop/自作アプリ/KakuNote仕様書/アイコン/KakuNote-icon.svg（100 × 100）を、
   アダプティブアイコンの 108dp の枠の真ん中に 0.6 倍で置く（丸く切り抜かれても印が欠けないように、安全な範囲に収める）
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
